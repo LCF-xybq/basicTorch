@@ -2,9 +2,11 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import sys
+import matplotlib.pyplot as plt
+import numpy as np
+import torch.nn.functional as F
 
-from d2l import torch as d2l
+from torch.utils.tensorboard import SummaryWriter
 from shutil import copy
 from torch.utils.data import DataLoader
 from torchvision import models, datasets, transforms
@@ -49,6 +51,49 @@ def create_data_file():
             src_pth = os.path.join(test, img_name)
             copy(src_pth, dst_pth)
 
+def matplotlib_imshow(img, one_channel=False):
+    if one_channel:
+        img = img.mean(dim=0)
+    img = img / 2 + 0.5     # unnormalize
+    npimg = img.cpu().numpy()
+    if one_channel:
+        plt.imshow(npimg, cmap="Greys")
+    else:
+        plt.imshow(np.transpose(npimg, (1, 2, 0)))
+
+def images_to_probs(net, images):
+    '''
+    Generates predictions and corresponding probabilities from a trained
+    network and a list of images
+    '''
+    output = net(images)
+    # convert output probabilities to predicted class
+    _, preds_tensor = torch.max(output, 1)
+    preds = np.squeeze(preds_tensor.cpu().numpy())
+    return preds, [F.softmax(el, dim=0)[i].item() for i, el in zip(preds, output)]
+
+def plot_classes_preds(net, images, labels):
+    '''
+    Generates matplotlib Figure using a trained network, along with images
+    and labels from a batch, that shows the network's top prediction along
+    with its probability, alongside the actual label, coloring this
+    information based on whether the prediction was correct or not.
+    Uses the "images_to_probs" function.
+    '''
+    classes = ('bag', 'cardboard', 'glass', 'metal', 'plastic', 'trash')
+    preds, probs = images_to_probs(net, images)
+    # plot the images in the batch, along with predicted and true labels
+    fig = plt.figure(figsize=(12, 48))
+    for idx in np.arange(4):
+        ax = fig.add_subplot(1, 4, idx+1, xticks=[], yticks=[])
+        matplotlib_imshow(images[idx], one_channel=True)
+        ax.set_title("{0}, {1:.1f}%\n(label: {2})".format(
+            classes[preds[idx]],
+            probs[idx] * 100.0,
+            classes[labels[idx]]),
+                    color=("green" if preds[idx]==labels[idx].item() else "red"))
+    return fig
+
 def _train(model, train_loader, test_loader, loss, optimizer, epochs):
     pth = r'D:\Program_self\basicTorch\practice\record.txt'
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -72,6 +117,17 @@ def _train(model, train_loader, test_loader, loss, optimizer, epochs):
                 i, len(train_loader), train_loss_sum / labels.shape[0]
             ))
 
+            writer = SummaryWriter('runs/Garbage Classification')
+            writer.add_scalar('training loss',
+                              train_loss_sum / labels.shape[0],
+                              epoch * len(train_loader) + i)
+
+            # ...log a Matplotlib Figure showing the model's predictions on a
+            # random mini-batch
+            writer.add_figure('predictions vs. actuals',
+                              plot_classes_preds(model, imgs, labels),
+                              global_step=epoch * len(train_loader) + i)
+
             with open(pth, 'a') as f:
                 f.write("[{}/{}]  Training Loss: {:.3f}\n".format(
                     i, len(train_loader), train_loss_sum / labels.shape[0]
@@ -90,10 +146,13 @@ def _train(model, train_loader, test_loader, loss, optimizer, epochs):
                 acc += torch.eq(prediect, labels).sum().item()
                 total += labels.shape[0]
 
-
+        acc_test = acc / total
+        model_save_pth = r'D:\Program_self\basicTorch\practice\garbage_resnet18_max_acc_test.model'
+        if acc_test > best_acc:
+            torch.save(model.state_dict(), model_save_pth)
         print("Acc test: {:.3f}".format(acc / total))
         with open(pth, 'a') as f:
-            f.write("Acc test: {:.3f}\n".format(acc / total))
+            f.write("Acc test: {:.3f}\n".format(acc_test))
 
 def train_garbage(net, train_loader, test_loader, learning_rate, num_epochs=5, param_group=True):
 
@@ -110,7 +169,7 @@ def train_garbage(net, train_loader, test_loader, learning_rate, num_epochs=5, p
                                   weight_decay=0.001)
     _train(net, train_loader, test_loader, loss, trainer, num_epochs)
 
-if __name__ == '__main__':
+def main():
     # prepare
     # create_cls_file()
     # create_data_file()
@@ -146,4 +205,13 @@ if __name__ == '__main__':
 
     train_garbage(model, train_loader, test_loader, 5e-5)
 
+def analysis():
+    pass
 
+if __name__ == '__main__':
+    is_train = False
+
+    if is_train:
+        main()
+    else:
+        analysis()
