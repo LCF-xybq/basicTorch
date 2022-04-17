@@ -2,14 +2,12 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import matplotlib.pyplot as plt
-import numpy as np
-import torch.nn.functional as F
 
 from torch.utils.tensorboard import SummaryWriter
 from shutil import copy
 from torch.utils.data import DataLoader
 from torchvision import models, datasets, transforms
+from utils import plot_classes_preds
 
 class_name = {'0': 'bag',
               '1': 'cardboard',
@@ -51,49 +49,6 @@ def create_data_file():
             src_pth = os.path.join(test, img_name)
             copy(src_pth, dst_pth)
 
-def matplotlib_imshow(img, one_channel=False):
-    if one_channel:
-        img = img.mean(dim=0)
-    img = img / 2 + 0.5     # unnormalize
-    npimg = img.cpu().numpy()
-    if one_channel:
-        plt.imshow(npimg, cmap="Greys")
-    else:
-        plt.imshow(np.transpose(npimg, (1, 2, 0)))
-
-def images_to_probs(net, images):
-    '''
-    Generates predictions and corresponding probabilities from a trained
-    network and a list of images
-    '''
-    output = net(images)
-    # convert output probabilities to predicted class
-    _, preds_tensor = torch.max(output, 1)
-    preds = np.squeeze(preds_tensor.cpu().numpy())
-    return preds, [F.softmax(el, dim=0)[i].item() for i, el in zip(preds, output)]
-
-def plot_classes_preds(net, images, labels):
-    '''
-    Generates matplotlib Figure using a trained network, along with images
-    and labels from a batch, that shows the network's top prediction along
-    with its probability, alongside the actual label, coloring this
-    information based on whether the prediction was correct or not.
-    Uses the "images_to_probs" function.
-    '''
-    classes = ('bag', 'cardboard', 'glass', 'metal', 'plastic', 'trash')
-    preds, probs = images_to_probs(net, images)
-    # plot the images in the batch, along with predicted and true labels
-    fig = plt.figure(figsize=(12, 48))
-    for idx in np.arange(4):
-        ax = fig.add_subplot(1, 4, idx+1, xticks=[], yticks=[])
-        matplotlib_imshow(images[idx], one_channel=True)
-        ax.set_title("{0}, {1:.1f}%\n(label: {2})".format(
-            classes[preds[idx]],
-            probs[idx] * 100.0,
-            classes[labels[idx]]),
-                    color=("green" if preds[idx]==labels[idx].item() else "red"))
-    return fig
-
 def _train(model, train_loader, test_loader, loss, optimizer, epochs):
     pth = r'D:\Program_self\basicTorch\practice\record.txt'
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -116,7 +71,7 @@ def _train(model, train_loader, test_loader, loss, optimizer, epochs):
             print("[{}/{}]  Training Loss: {}".format(
                 i, len(train_loader), train_loss_sum / labels.shape[0]
             ))
-
+            ''' Tensorboard head '''
             writer = SummaryWriter('runs/Garbage Classification')
             writer.add_scalar('training loss',
                               train_loss_sum / labels.shape[0],
@@ -127,6 +82,7 @@ def _train(model, train_loader, test_loader, loss, optimizer, epochs):
             writer.add_figure('predictions vs. actuals',
                               plot_classes_preds(model, imgs, labels),
                               global_step=epoch * len(train_loader) + i)
+            ''' Tensorboard end '''
 
             with open(pth, 'a') as f:
                 f.write("[{}/{}]  Training Loss: {:.3f}\n".format(
@@ -185,7 +141,7 @@ def main():
                              std=[0.229, 0.224, 0.225]),
     ])
 
-    test_transform = transform = transforms.Compose([
+    test_transform = transforms.Compose([
         transforms.Resize(256),
         transforms.CenterCrop(224),
         transforms.ToTensor(),
@@ -194,10 +150,10 @@ def main():
     ])
 
     train_dataset = datasets.ImageFolder(train_pth, transform)
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+    train_loader = DataLoader(train_dataset, batch_size=8, shuffle=True)
 
-    test_dataset = datasets.ImageFolder(train_pth, transform)
-    test_loader = DataLoader(train_dataset, batch_size=32, shuffle=False)
+    test_dataset = datasets.ImageFolder(test_pth, test_transform)
+    test_loader = DataLoader(test_dataset, batch_size=8, shuffle=False)
 
     model = models.resnet18(pretrained=True)
     model.fc = nn.Linear(model.fc.in_features, 6)
@@ -205,11 +161,50 @@ def main():
 
     train_garbage(model, train_loader, test_loader, 5e-5)
 
+
 def analysis():
-    pass
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    test_pth = '/root/autodl-tmp/data/test'
+    test_transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225]),
+    ])
+
+    test_dataset = datasets.ImageFolder(test_pth, test_transform)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+    model = models.resnet18(pretrained=True)
+    model.fc = nn.Linear(model.fc.in_features, 6)
+    model.load_state_dict(torch.load('/root/autodl-tmp/data/garbage_max_acc_epoch5.model'))
+    model = model.to(device)
+
+    model.eval()
+    acc = 0.0
+    total = 0
+    best_acc = 0.0
+    cls_cor = {}
+    with torch.no_grad():
+        for i, (imgs, labels) in enumerate(test_loader):
+            imgs = imgs.to(device)
+            labels = labels.to(device)
+            output = model(imgs)
+            prediect = torch.max(output, dim=1)[1]
+            acc = torch.eq(prediect, labels).sum().item()
+            pre_np = int(prediect[0].cpu().float().numpy())
+            label_np = int(labels[0].cpu().float().numpy())
+            if pre_np == label_np:
+                if class_name[str(pre_np)] in cls_cor.keys():
+                    cls_cor[class_name[str(pre_np)]] += 1
+                else:
+                    cls_cor[class_name[str(pre_np)]] = 1
+
+    print(cls_cor)
 
 if __name__ == '__main__':
-    is_train = False
+    is_train = True
 
     if is_train:
         main()
