@@ -96,14 +96,14 @@ if __name__ == '__main__':
               else torch.device('cpu'))
     print(f"Training on device {device}.")
 
-    model = Net().to(device=device)
-    optimizer = optim.SGD(model.parameters(), lr=1e-2)
+    model.txt = Net().to(device=device)
+    optimizer = optim.SGD(model.txt.parameters(), lr=1e-2)
     loss_fn = nn.CrossEntropyLoss()
 
-    numel_list = [p.numel() for p in model.parameters()]
+    numel_list = [p.numel() for p in model.txt.parameters()]
     print(sum(numel_list), '\t', numel_list)
     print('-' * 80)
-    for param in model.parameters():
+    for param in model.txt.parameters():
         print(param.shape)
 
 
@@ -113,11 +113,11 @@ if __name__ == '__main__':
     training_loop(
         n_epochs=30,
         optimizer=optimizer,
-        model=model,
+        model.txt=model.txt,
         loss_fn=loss_fn,
         train_loader=train_loader,
         device=device
     )
 
-    validate(model, train_loader, val_loader, device)
+    validate(model.txt, train_loader, val_loader, device)
     '''

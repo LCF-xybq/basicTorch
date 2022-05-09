@@ -108,7 +108,7 @@ if __name__ == '__main__':
               else torch.device('cpu'))
     print(f"Training on device {device}.")
 
-    # model
+    # model.txt
     model = Net().to(device=device)
     # dataloader
     train_loader = DataLoader(train, batch_size=64, shuffle=True)

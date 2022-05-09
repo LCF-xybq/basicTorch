@@ -63,7 +63,7 @@ if __name__ == '__main__':
     for epoch in range(n_epochs):
         for imgs, labels in train_loader:
             batch_size = imgs.shape[0]
-            out = model(imgs.view(batch_size, -1))
+            out = model.txt(imgs.view(batch_size, -1))
             loss = loss_fn(out, labels)
 
             optimizer.zero_grad()
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     with torch.no_grad():
         for imgs, labels in val_loader:
             bs = imgs.shape[0]
-            out = model(imgs.view(bs, -1))
+            out = model.txt(imgs.view(bs, -1))
             _, predicted = torch.max(out, dim=1)
             total += labels.shape[0]
             correct += int((predicted == labels).sum())

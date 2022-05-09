@@ -77,7 +77,7 @@ def _train(model, train_loader, test_loader, loss, optimizer, epochs):
                               train_loss_sum / labels.shape[0],
                               epoch * len(train_loader) + i)
 
-            # ...log a Matplotlib Figure showing the model's predictions on a
+            # ...log a Matplotlib Figure showing the model.txt's predictions on a
             # random mini-batch
             writer.add_figure('predictions vs. actuals',
                               plot_classes_preds(model, imgs, labels),
@@ -103,7 +103,7 @@ def _train(model, train_loader, test_loader, loss, optimizer, epochs):
                 total += labels.shape[0]
 
         acc_test = acc / total
-        model_save_pth = r'D:\Program_self\basicTorch\practice\garbage_resnet18_max_acc_test.model'
+        model_save_pth = r'D:\Program_self\basicTorch\practice\garbage_resnet18_max_acc_test.model.txt'
         if acc_test > best_acc:
             torch.save(model.state_dict(), model_save_pth)
         print("Acc test: {:.3f}".format(acc / total))
@@ -178,7 +178,7 @@ def analysis():
 
     model = models.resnet18(pretrained=True)
     model.fc = nn.Linear(model.fc.in_features, 6)
-    model.load_state_dict(torch.load('/root/autodl-tmp/data/garbage_max_acc_epoch5.model'))
+    model.load_state_dict(torch.load('/root/autodl-tmp/data/garbage_max_acc_epoch5.model.txt'))
     model = model.to(device)
 
     model.eval()

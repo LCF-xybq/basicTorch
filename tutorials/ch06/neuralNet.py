@@ -33,7 +33,7 @@ print(t_c_val.shape)
 print('-' * 60)
 
 
-# linear model
+# linear model.txt
 # (in_features, out_features)
 linear_model = nn.Linear(1, 1)
 print(linear_model.weight, linear_model.bias)
