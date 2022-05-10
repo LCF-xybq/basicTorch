@@ -8,6 +8,7 @@ import torch.nn as nn
 from utils import heatmap
 from torch.nn.functional import log_softmax
 
+debug_print = 0
 
 def example_mask():
     Masking = [x for x in range(20)]
@@ -90,6 +91,7 @@ def subsequent_mask(size):
 def attention(query, key, value, mask=None, dropout=None):
     "Compute 'Scaled Dot Product Attention'"
     d_k = query.size(-1)
+    # QK^T
     scores = torch.matmul(query, key.transpose(-2, -1)) / math.sqrt(d_k)
     if mask is not None:
         scores = scores.masked_fill(mask == 0, -1e9)
@@ -179,11 +181,25 @@ class MultiHeadedAttention(nn.Module):
             mask = mask.unsqueeze(1)
         nbatches = query.size(0)
 
+        if debug_print and 0:
+            print('--------- in MultiHeadedAttention ---------')
+            print(f'mask shape: {mask.shape}')
+            print(f'query shape: {query.shape}')
+            print(f'key shape: {key.shape}')
+            print(f'value shape: {value.shape}')
+
         # 1) Do all the linear projections in batch from d_model => h x d_k
         query, key, value = [
             lin(x).view(nbatches, -1, self.h, self.d_k).transpose(1, 2)
             for lin, x in zip(self.linears, (query, key, value))
         ]
+
+        if debug_print and 0:
+            print('--------- in MultiHeadedAttention ---------')
+            print(f'mask shape: {mask.shape}')
+            print(f'query shape: {query.shape}')
+            print(f'key shape: {key.shape}')
+            print(f'value shape: {value.shape}')
 
         # 2) Apply attention on all the projected vectors in batch.
         x, self.attn = attention(
@@ -344,4 +360,4 @@ class Batch:
         return tgt_mask
 
 if __name__ == "__main__":
-    run_tests()
+    example_positional()
